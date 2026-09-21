@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<!-- スマホの拡大縮小を防止、タッチ操作を最適化 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Shattered PD 軸ずらしツール (スマホ版)</title>
+<style>
+    body {
+        font-family: sans-serif;
+        background-color: #121212;
+        color: #e0e0e0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px 5px;
+        margin: 0;
+        /* スワイプ時のリロードなどを防止 */
+        overscroll-behavior: none;
+    }
+    h1 { font-size: 1.1rem; margin-bottom: 10px; text-align: center; }
+    
+    /* スマホ向けにボタンを大きく、押しやすく配置 */
+    .controls {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 6px;
+        width: 100%;
+        max-width: 400px;
+        margin-bottom: 12px;
+    }
+    button {
+        padding: 12px 4px;
+        border: none;
+        border-radius: 6px;
+        font-weight: bold;
+        font-size: 0.9rem;
+        cursor: pointer;
+        background-color: #333;
+        color: #fff;
+        /* タップ時のハイライトを消す */
+        -webkit-tap-highlight-color: transparent;
+    }
+    button.active {
+        outline: 3px solid #fff;
+        outline-offset: -2px;
+        transform: scale(0.95);
+    }
+    #btn-hero { background-color: #2196F3; }
+    #btn-enemy { background-color: #F44336; }
+    #btn-wall { background-color: #795548; }
+    #btn-erase { background-color: #607D8B; }
+
+    /* グリッドを画面幅いっぱいに */
+    #grid {
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        grid-template-rows: repeat(12, 1fr);
+        gap: 1px;
+        background-color: #555;
+        border: 2px solid #666;
+        width: 96vw;
+        max-width: 400px;
+        aspect-ratio: 1 / 1;
+        /* グリッド上でのスクロールを無効化し、なぞり操作を優先 */
+        touch-action: none;
+    }
+    .cell {
+        background-color: #222;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.75rem;
+        font-weight: bold;
+        user-select: none;
+        position: relative;
+    }
+    
+    /* オブジェクト */
+    .cell.hero { background-color: #1976D2; color: #fff; }
+    .cell.hero::after { content: "自"; }
+    .cell.enemy { background-color: #D32F2F; color: #fff; }
+    .cell.enemy::after { content: "敵"; }
+    .cell.wall { background-color: #4E342E; }
+    .cell.wall::after { content: "壁"; color: #A1887F; font-size: 0.65rem;}
+    
+    /* 正解のタップ位置 */
+    .cell.valid-target { background-color: rgba(255, 235, 59, 0.25); }
+    .cell.valid-target::after { content: "◎"; color: #FFEB3B; font-size: 1rem; }
+    
+    /* 敵自身の上の正解マーカー */
+    .cell.enemy.direct-hit::before {
+        content: "";
+        position: absolute;
+        width: 85%;
+        height: 85%;
+        border: 2px solid #FFEB3B;
+        border-radius: 50%;
+        box-sizing: border-box;
+    }
+
+    #info {
+        margin-top: 15px;
+        padding: 12px 8px;
+        background-color: #1e1e1e;
+        border-radius: 6px;
+        width: 96vw;
+        max-width: 400px;
+        box-sizing: border-box;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        text-align: center;
+    }
+    .highlight { color: #FFEB3B; font-weight: bold; }
+</style>
+</head>
+<body>
+
+<h1>Shattered PD 自動軸ずらし算出ツール</h1>
+
+<div class="controls">
+    <button id="btn-hero" class="active" onclick="setMode('hero')">自機</button>
+    <button id="btn-enemy" onclick="setMode('enemy')">敵</button>
+    <button id="btn-wall" onclick="setMode('wall')">壁</button>
+    <button id="btn-erase" onclick="setMode('erase')">消去</button>
+</div>
+
+<div id="grid"></div>
+
+<div id="info">配置を変更すると、自動で計算します。<br>※壁や消しゴムはなぞって連続入力できます。</div>
+
+<script>
+const SIZE = 12;
+let mode = 'hero';
+let isDragging = false;
+
+let heroPos = {x: 2, y: 2};
+let enemyPos = {x: 5, y: 5};
+let walls = new Set(["3,3", "4,3"]); 
+
+const gridEl = document.getElementById('grid');
+
+function setMode(newMode) {
+    mode = newMode;
+    document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
+    document.getElementById(`btn-${newMode}`).classList.add('active');
+}
+
+function initGrid() {
+    gridEl.innerHTML = '';
+    for (let y = 0; y < SIZE; y++) {
+        for (let x = 0; x < SIZE; x++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.dataset.x = x;
+            cell.dataset.y = y;
+            
+            // スマホ向け：ポインターイベントでなぞり操作に対応
+            cell.addEventListener('pointerdown', (e) => {
+                isDragging = true;
+                handleCellInteraction(x, y);
+                // ドラッグ中に他のセルも反応するようにキャプチャを解放
+                cell.releasePointerCapture(e.pointerId);
+            });
+            cell.addEventListener('pointerenter', (e) => {
+                // 壁と消しゴムモードの時だけなぞり入力可能
+                if (isDragging && (mode === 'wall' || mode === 'erase')) {
+                    handleCellInteraction(x, y);
+                }
+            });
+            
+            gridEl.appendChild(cell);
+        }
+    }
+    
+    // 画面外で指を離した時の処理
+    document.addEventListener('pointerup', () => { isDragging = false; });
+    document.addEventListener('pointercancel', () => { isDragging = false; });
+    
+    render();
+}
+
+function handleCellInteraction(x, y) {
+    const key = `${x},${y}`;
+    
+    if (mode === 'hero') {
+        heroPos = {x, y};
+    } else if (mode === 'enemy') {
+        enemyPos = {x, y};
+    } else if (mode === 'wall') {
+        if (!(x === heroPos.x && y === heroPos.y) && !(x === enemyPos.x && y === enemyPos.y)) {
+            walls.add(key);
+        }
+    } else if (mode === 'erase') {
+        walls.delete(key);
+    }
+    render();
+}
+
+function calculateBallistica(from, to) {
+    let x0 = from.x, y0 = from.y;
+    let x1 = to.x,   y1 = to.y;
+
+    let dx = Math.abs(x1 - x0);
+    let dy = Math.abs(y1 - y0);
+    let stepX = x1 > x0 ? 1 : -1;
+    let stepY = y1 > y0 ? 1 : -1;
+    let stepA, stepB, dA, dB;
+
+    if (dx > dy) {
+        stepA = {x: stepX, y: 0}; stepB = {x: 0, y: stepY}; dA = dx; dB = dy;
+    } else {
+        stepA = {x: 0, y: stepY}; stepB = {x: stepX, y: 0}; dA = dy; dB = dx;
+    }
+
+    let curr = {x: x0, y: y0};
+    let err = Math.floor(dA / 2);
+    let collision = null;
+
+    while (curr.x >= 0 && curr.x < SIZE && curr.y >= 0 && curr.y < SIZE) {
+        const key = `${curr.x},${curr.y}`;
+        const isSource = (curr.x === from.x && curr.y === from.y);
+
+        if (!collision && !isSource) {
+            if (walls.has(key)) {
+                collision = { pos: {...curr}, type: 'wall' };
+            } else if (curr.x === enemyPos.x && curr.y === enemyPos.y) {
+                collision = { pos: {...curr}, type: 'enemy' };
+            } else if (curr.x === to.x && curr.y === to.y) {
+                collision = { pos: {...curr}, type: 'target' };
+            }
+        }
+        if (collision) break;
+
+        curr.x += stepA.x; curr.y += stepA.y; err += dB;
+        if (err >= dA) {
+            err -= dA; curr.x += stepB.x; curr.y += stepB.y;
+        }
+    }
+    return { collision };
+}
+
+function render() {
+    document.querySelectorAll('.cell').forEach(c => c.className = 'cell');
+
+    walls.forEach(key => {
+        const [x, y] = key.split(',').map(Number);
+        const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+        if (cell) cell.classList.add('wall');
+    });
+    
+    if (heroPos) {
+        const cell = document.querySelector(`.cell[data-x="${heroPos.x}"][data-y="${heroPos.y}"]`);
+        if (cell) cell.classList.add('hero');
+    }
+    if (enemyPos) {
+        const cell = document.querySelector(`.cell[data-x="${enemyPos.x}"][data-y="${enemyPos.y}"]`);
+        if (cell) cell.classList.add('enemy');
+    }
+
+    let hitCount = 0;
+    let directHit = false;
+
+    if (heroPos && enemyPos) {
+        for (let y = 0; y < SIZE; y++) {
+            for (let x = 0; x < SIZE; x++) {
+                const target = {x, y};
+                if (walls.has(`${x},${y}`)) continue;
+                if (x === heroPos.x && y === heroPos.y) continue;
+
+                const result = calculateBallistica(heroPos, target);
+                
+                if (result.collision && result.collision.type === 'enemy') {
+                    if (x === enemyPos.x && y === enemyPos.y) {
+                        directHit = true;
+                        const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+                        if (cell) cell.classList.add('direct-hit');
+                    } else {
+                        const cell = document.querySelector(`.cell[data-x="${x}"][data-y="${y}"]`);
+                        if (cell) cell.classList.add('valid-target');
+                        hitCount++;
+                    }
+                }
+            }
+        }
+    }
+
+    const infoEl = document.getElementById('info');
+    if (directHit && hitCount === 0) {
+        infoEl.innerHTML = `敵を直接タップすれば当たります。`;
+    } else if (directHit && hitCount > 0) {
+        infoEl.innerHTML = `敵を直接タップしても当たりますが、<br><span class="highlight">◎マーク</span>のマスをタップしても当たります。`;
+    } else if (!directHit && hitCount > 0) {
+        infoEl.innerHTML = `敵を直接タップすると壁に当たります！<br><span class="highlight">◎マーク</span>のマスをタップして軸ずらししてください。`;
+    } else {
+        infoEl.innerHTML = `完全に壁に遮られています。<br>どこをタップしても当たりません。`;
+    }
+}
+
+initGrid();
+</script>
+</body>
+</html>
