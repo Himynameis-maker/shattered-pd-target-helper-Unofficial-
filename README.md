@@ -5,5 +5,5 @@
 ## ライセンス
 This project is licensed under the GPL v3 License - based on source code from Shattered Pixel Dungeon (Copyright Evan Debenham / Oleg Dolya).
 
-https://himynameis-maker.github.io/shattered-pd-target-helper-Unofficial-/
+ここで試して→https://himynameis-maker.github.io/shattered-pd-target-helper-Unofficial-/
 　
