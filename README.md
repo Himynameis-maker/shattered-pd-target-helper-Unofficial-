@@ -1,4 +1,4 @@
-# shattered-pd-投擲シミュレーター-非公式-
+# shattered-pixel-dungeon-投擲シミュレーター-非公式-
 投擲物を投げる時、どこをタップすればいいか分かる
 ## 免責事項
 このツールは 『Shattered Pixel Dungeon』 の非公式ファンメイドツールです。
