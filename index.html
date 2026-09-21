@@ -23,7 +23,7 @@
     /* スマホ向けにボタンを大きく、押しやすく配置 */
     .controls {
         display: grid;
-        grid-template-columns: repeat(4, 1fr);
+        grid-template-columns: repeat(3, 1fr); /* 4から3に変更 */
         gap: 6px;
         width: 100%;
         max-width: 400px;
@@ -49,7 +49,6 @@
     #btn-hero { background-color: #2196F3; }
     #btn-enemy { background-color: #F44336; }
     #btn-wall { background-color: #795548; }
-    #btn-erase { background-color: #607D8B; }
 
     /* グリッドを画面幅いっぱいに */
     #grid {
@@ -121,18 +120,18 @@
 <div class="controls">
     <button id="btn-hero" class="active" onclick="setMode('hero')">自機</button>
     <button id="btn-enemy" onclick="setMode('enemy')">敵</button>
-    <button id="btn-wall" onclick="setMode('wall')">壁</button>
-    <button id="btn-erase" onclick="setMode('erase')">消去</button>
+    <button id="btn-wall" onclick="setMode('wall')">壁 (配置と削除)</button>
 </div>
 
 <div id="grid"></div>
 
-<div id="info">配置を変更すると、自動で計算します。<br>※壁や消しゴムはなぞって連続入力できます。</div>
+<div id="info">配置を変更すると、自動で計算します。<br>※壁はなぞって連続入力/消去できます。</div>
 
 <script>
 const SIZE = 12;
 let mode = 'hero';
 let isDragging = false;
+let dragAction = null; // 'add' または 'remove' を保持
 
 let heroPos = {x: 2, y: 2};
 let enemyPos = {x: 5, y: 5};
@@ -158,13 +157,22 @@ function initGrid() {
             // スマホ向け：ポインターイベントでなぞり操作に対応
             cell.addEventListener('pointerdown', (e) => {
                 isDragging = true;
+                const key = `${x},${y}`;
+                // ドラッグ開始時に、そのマスが壁かどうかで「追加モード」か「削除モード」か決定する
+                if (mode === 'wall') {
+                    if (walls.has(key)) {
+                        dragAction = 'remove';
+                    } else {
+                        dragAction = 'add';
+                    }
+                }
                 handleCellInteraction(x, y);
                 // ドラッグ中に他のセルも反応するようにキャプチャを解放
                 cell.releasePointerCapture(e.pointerId);
             });
             cell.addEventListener('pointerenter', (e) => {
-                // 壁と消しゴムモードの時だけなぞり入力可能
-                if (isDragging && (mode === 'wall' || mode === 'erase')) {
+                // 壁モードの時だけなぞり入力可能
+                if (isDragging && mode === 'wall') {
                     handleCellInteraction(x, y);
                 }
             });
@@ -174,8 +182,14 @@ function initGrid() {
     }
     
     // 画面外で指を離した時の処理
-    document.addEventListener('pointerup', () => { isDragging = false; });
-    document.addEventListener('pointercancel', () => { isDragging = false; });
+    document.addEventListener('pointerup', () => { 
+        isDragging = false; 
+        dragAction = null;
+    });
+    document.addEventListener('pointercancel', () => { 
+        isDragging = false; 
+        dragAction = null;
+    });
     
     render();
 }
@@ -189,10 +203,19 @@ function handleCellInteraction(x, y) {
         enemyPos = {x, y};
     } else if (mode === 'wall') {
         if (!(x === heroPos.x && y === heroPos.y) && !(x === enemyPos.x && y === enemyPos.y)) {
-            walls.add(key);
+            if (dragAction === 'remove') {
+                walls.delete(key);
+            } else if (dragAction === 'add') {
+                walls.add(key);
+            } else {
+                // 単一タップ時のフォールバック (pointerdownで設定されるはずだが念のため)
+                if (walls.has(key)) {
+                    walls.delete(key);
+                } else {
+                    walls.add(key);
+                }
+            }
         }
-    } else if (mode === 'erase') {
-        walls.delete(key);
     }
     render();
 }
