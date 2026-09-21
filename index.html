@@ -314,7 +314,7 @@ function render() {
     } else if (directHit && hitCount > 0) {
         infoEl.innerHTML = `敵を直接タップしても当たりますが、<br><span class="highlight">◎マーク</span>のマスをタップしても当たります。`;
     } else if (!directHit && hitCount > 0) {
-        infoEl.innerHTML = `敵を直接タップすると壁に当たります！<br><span class="highlight">◎マーク</span>のマスをタップして軸ずらししてください。`;
+        infoEl.innerHTML = `敵を直接タップすると壁に当たります！<br><span class="highlight">◎マーク</span>のマスをタップしてください。`;
     } else {
         infoEl.innerHTML = `完全に壁に遮られています。<br>どこをタップしても当たりません。`;
     }
