@@ -2,7 +2,6 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<!-- スマホの拡大縮小を防止、タッチ操作を最適化 -->
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>投擲武器を投げる時、どこを狙えばいいか分かります</title>
 <style>
@@ -23,7 +22,7 @@
     /* スマホ向けにボタンを大きく、押しやすく配置 */
     .controls {
         display: grid;
-        grid-template-columns: repeat(3, 1fr); /* 4から3に変更 */
+        grid-template-columns: repeat(4, 1fr); /* ボタン追加に伴い3から4に変更 */
         gap: 6px;
         width: 100%;
         max-width: 400px;
@@ -49,6 +48,7 @@
     #btn-hero { background-color: #2196F3; }
     #btn-enemy { background-color: #F44336; }
     #btn-wall { background-color: #795548; }
+    #btn-swap { background-color: #9C27B0; } /* 入れ替えボタンの色を追加 */
 
     /* グリッドを画面幅いっぱいに */
     #grid {
@@ -121,6 +121,7 @@
     <button id="btn-hero" class="active" onclick="setMode('hero')">自機</button>
     <button id="btn-enemy" onclick="setMode('enemy')">敵</button>
     <button id="btn-wall" onclick="setMode('wall')">壁 (配置と削除)</button>
+    <button id="btn-swap" onclick="swapPositions()">入替</button>
 </div>
 
 <div id="grid"></div>
@@ -143,6 +144,13 @@ function setMode(newMode) {
     mode = newMode;
     document.querySelectorAll('.controls button').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${newMode}`).classList.add('active');
+}
+
+function swapPositions() {
+    let temp = heroPos;
+    heroPos = enemyPos;
+    enemyPos = temp;
+    render();
 }
 
 function initGrid() {
