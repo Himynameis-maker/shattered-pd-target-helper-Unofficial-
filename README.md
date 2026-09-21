@@ -5,4 +5,4 @@
 ## ライセンス
 This project is licensed under the GPL v3 License - based on source code from Shattered Pixel Dungeon (Copyright Evan Debenham / Oleg Dolya).
 
-https://himynameis-maker.github.io/unofficial-shattered-pixel-dungeon-target-helper/
+　
